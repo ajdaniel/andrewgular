@@ -217,4 +217,53 @@ Scope.prototype.$$postDigest = function(fn) {
     this.$$postDigestQueue.push(fn);
 };
 
+/**
+ * Watch multiple functions, if ANY change, fire the listener function
+ */
+Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
+    var self = this, firstRun = true;
+    var newValues = new Array(watchFns.length);
+    var oldValues = new Array(watchFns.length);
+    var listenerScheduled = false;
+    var destroyFunctions = [];
+    
+    // If it's an empty array, run the listener at the end
+    if (!watchFns.length) {
+        var shouldCall = true;
+        self.$evalAsync(function() {
+            if (shouldCall) listenerFn(newValues, newValues, self);
+        });
+        return function() {
+            shouldCall = false;
+        }
+    }
+    
+    function watchGroupListener() {
+        if (firstRun) {
+            firstRun = false;
+            listenerFn(newValues, newValues, self);
+        } else {
+            listenerFn(newValues, oldValues, self);
+        }
+        listenerScheduled = false;
+    }
+    
+    _.forEach(watchFns, function(watchFn, index) {
+       destroyFunctions.push(self.$watch(watchFn, function(newValue, oldValue) {
+          newValues[index] = newValue;
+          oldValues[index] = oldValue;
+          if(!listenerScheduled) {
+              listenerScheduled = true;
+              self.$evalAsync(watchGroupListener);
+          }
+       }));
+    });
+    
+    return function() {
+        _.forEach(destroyFunctions, function(destroyFunction) {
+            destroyFunction();
+        });
+    };
+};
+
 module.exports = Scope;

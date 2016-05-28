@@ -13,6 +13,12 @@ function Scope() {
     this.$$phase = null;
 }
 
+/**
+ * Runs every time in a digest loop
+ * if result of watchFn is different from last time,
+ * call listenerFn(oldValue, newValue, scope)
+ * valueEq: boolean whether to check value (true) or exact
+ */
 Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
     var self = this;
     var watcher = {
@@ -33,6 +39,10 @@ Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
     };
 };
 
+/**
+ * internal function
+ * are the VALUEs equal?
+ */
 Scope.prototype.$$areEqual = function (newValue, oldValue, valueEq) {
     if (valueEq) {
         return _.isEqual(newValue, oldValue);
@@ -43,6 +53,11 @@ Scope.prototype.$$areEqual = function (newValue, oldValue, valueEq) {
     }
 };
 
+/**
+ * internal function
+ * One digest loop. For each watcher, call the listener if the value changed
+ * return dirty(boolean) if there was a change in the loop
+ */
 Scope.prototype.$$digestOnce = function () {
     var self = this, newValue, oldValue, dirty;
 
@@ -71,6 +86,11 @@ Scope.prototype.$$digestOnce = function () {
     return dirty;
 };
 
+/**
+ * Trigger the digest loop. If the loop is dirty, run again
+ * Run no more than 10 times.
+ * Clear the evalAsync array before each loop
+ */
 Scope.prototype.$digest = function () {
     var dirty, ttl = 10;
     this.$$lastDirtyWatch = null;
@@ -93,10 +113,16 @@ Scope.prototype.$digest = function () {
     this.$clearPhase();
 };
 
+/**
+ * Evaluate the function in the scope
+ */
 Scope.prototype.$eval = function (expr, locals) {
     return expr(this, locals);
 };
 
+/**
+ * Evaluate the expression, then run the digest loop
+ */
 Scope.prototype.$apply = function (expr) {
     this.$beginPhase('$apply');
     try {
@@ -107,6 +133,10 @@ Scope.prototype.$apply = function (expr) {
     }
 };
 
+/**
+ * Evaluate the expression next time the digest loop runs.
+ * If the loop is already running, eval in current loop
+ */
 Scope.prototype.$evalAsync = function (expr) {
     var self = this;
     if (!self.$$phase && !self.$$asyncQueue.length) {
@@ -119,6 +149,9 @@ Scope.prototype.$evalAsync = function (expr) {
     this.$$asyncQueue.push({ scope: this, expression: expr });
 };
 
+/**
+ * Change the internal phase tracking
+ */
 Scope.prototype.$beginPhase = function (phase) {
     if (this.$$phase) {
         throw 'Phase ' + this.$$phase + ' already in progress';
@@ -126,10 +159,16 @@ Scope.prototype.$beginPhase = function (phase) {
     this.$$phase = phase;
 };
 
+/**
+ * Clear internal phase tracker
+ */
 Scope.prototype.$clearPhase = function () {
     this.$$phase = null;
 };
 
+/**
+ * Flush and run the current applyAsync array
+ */
 Scope.prototype.$$flushApplyAsync = function () {
     while (this.$$applyAsyncQueue.length) {
         this.$$applyAsyncQueue.shift()();
@@ -137,6 +176,9 @@ Scope.prototype.$$flushApplyAsync = function () {
     this.$$applyAsyncId = null;
 };
 
+/**
+ * Apply the expression asynchronously (after current execution)
+ */
 Scope.prototype.$applyAsync = function (expr) {
     var self = this;
     this.$$applyAsyncQueue.push(function() {

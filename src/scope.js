@@ -10,6 +10,7 @@ function Scope() {
     this.$$asyncQueue = [];
     this.$$applyAsyncQueue = [];
     this.$$applyAsyncId = null;
+    this.$$postDigestQueue = [];
     this.$$phase = null;
 }
 
@@ -90,6 +91,7 @@ Scope.prototype.$$digestOnce = function () {
  * Trigger the digest loop. If the loop is dirty, run again
  * Run no more than 10 times.
  * Clear the evalAsync array before each loop
+ * Run all postDigest functions at the end
  */
 Scope.prototype.$digest = function () {
     var dirty, ttl = 10;
@@ -101,8 +103,12 @@ Scope.prototype.$digest = function () {
     }
     do {
         while (this.$$asyncQueue.length) {
-            var asyncTask = this.$$asyncQueue.shift();
-            asyncTask.scope.$eval(asyncTask.expression);
+            try {
+                var asyncTask = this.$$asyncQueue.shift();
+                asyncTask.scope.$eval(asyncTask.expression);
+            } catch (e) {
+                console.log(e);
+            }
         }
         dirty = this.$$digestOnce();
         if ((dirty || this.$$asyncQueue.length) && !(ttl--)) {
@@ -111,6 +117,13 @@ Scope.prototype.$digest = function () {
         }
     } while (dirty || this.$$asyncQueue.length);
     this.$clearPhase();
+    while(this.$$postDigestQueue.length){
+        try {
+            this.$$postDigestQueue.shift()();
+        } catch (e) {
+            console.log(e);
+        }
+    }
 };
 
 /**
@@ -171,13 +184,18 @@ Scope.prototype.$clearPhase = function () {
  */
 Scope.prototype.$$flushApplyAsync = function () {
     while (this.$$applyAsyncQueue.length) {
-        this.$$applyAsyncQueue.shift()();
+        try {
+            this.$$applyAsyncQueue.shift()();
+        } catch (e) {
+            console.log(e);
+        }
     }
     this.$$applyAsyncId = null;
 };
 
 /**
  * Apply the expression asynchronously (after current execution)
+ * the function only runs once
  */
 Scope.prototype.$applyAsync = function (expr) {
     var self = this;
@@ -189,6 +207,14 @@ Scope.prototype.$applyAsync = function (expr) {
             self.$apply(_.bind(self.$$flushApplyAsync, self));
         },0);
     }
+};
+
+/**
+ * interna function
+ * Provide a function that runs once at the end of the next digest
+ */
+Scope.prototype.$$postDigest = function(fn) {
+    this.$$postDigestQueue.push(fn);
 };
 
 module.exports = Scope;

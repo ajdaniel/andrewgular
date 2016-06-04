@@ -267,8 +267,14 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
     };
 };
 
+/**
+ * return an instance of Scope with this as the prototype/ancestor
+ */
 Scope.prototype.$new = function() {
-    return Object.create(this);
+    var child = Object.create(this);
+    // To allow own digest loop to occur properly, assign it's own $$watchers
+    child.$$watchers = [];
+    return child;
 };
 
 module.exports = Scope;

@@ -107,8 +107,8 @@ Scope.prototype.$digest = function () {
     var dirty, ttl = 10;
     this.$root.$$lastDirtyWatch = null;
     this.$beginPhase('$digest');
-    if (this.$$applyAsyncId) {
-        clearTimeout(this.$$applyAsyncId);
+    if (this.$root.$$applyAsyncId) {
+        clearTimeout(this.$root.$$applyAsyncId);
         this.$$flushApplyAsync();
     }
     do {
@@ -200,7 +200,7 @@ Scope.prototype.$$flushApplyAsync = function () {
             console.log(e);
         }
     }
-    this.$$applyAsyncId = null;
+    this.$root.$$applyAsyncId = null;
 };
 
 /**
@@ -212,8 +212,8 @@ Scope.prototype.$applyAsync = function (expr) {
     this.$$applyAsyncQueue.push(function() {
         self.$eval(expr); 
     });
-    if (self.$$applyAsyncId === null) {
-        self.$$applyAsyncId = setTimeout(function(){
+    if (self.$root.$$applyAsyncId === null) {
+        self.$root.$$applyAsyncId = setTimeout(function(){
             self.$apply(_.bind(self.$$flushApplyAsync, self));
         },0);
     }
@@ -280,8 +280,19 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
 /**
  * return an instance of Scope with this as the prototype/ancestor
  */
-Scope.prototype.$new = function() {
-    var child = Object.create(this);
+Scope.prototype.$new = function(isolated) {
+    var child;
+    
+    if (isolated) {
+        child = new Scope();
+        child.$root = this.$root;
+        child.$$asyncQueue = this.$$asyncQueue;
+        child.$$postDigestQueue = this.$$postDigestQueue;
+        child.$$applyAsyncQueue = this.$$applyAsyncQueue;
+    } else {
+        child = Object.create(this);
+    }
+    
     this.$$children.push(child);
     // To allow own digest loop to occur properly, assign it's own $$watchers
     child.$$watchers = [];
@@ -302,6 +313,6 @@ Scope.prototype.$$everyScope = function(fn) {
     } else {
         return false;
     }
-}
+};
 
 module.exports = Scope;

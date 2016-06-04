@@ -233,9 +233,10 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
         self.$evalAsync(function() {
             if (shouldCall) listenerFn(newValues, newValues, self);
         });
+        
         return function() {
             shouldCall = false;
-        }
+        };
     }
     
     function watchGroupListener() {
@@ -264,6 +265,10 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
             destroyFunction();
         });
     };
+};
+
+Scope.prototype.$new = function() {
+    return Object.create(this);
 };
 
 module.exports = Scope;

@@ -12,6 +12,8 @@ function Scope() {
     this.$$applyAsyncId = null;
     this.$$postDigestQueue = [];
     this.$$phase = null;
+    this.$$children = [];
+    this.$root = this;
 }
 
 /**
@@ -30,12 +32,12 @@ Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
     };
 
     this.$$watchers.unshift(watcher);
-    this.$$lastDirtyWatch = null;
+    this.$root.$$lastDirtyWatch = null;
     return function () {
         var index = self.$$watchers.indexOf(watcher);
         if (index > -1) {
             self.$$watchers.splice(index, 1);
-            self.$$lastDirtyWatch = null;
+            self.$root.$$lastDirtyWatch = null;
         }
     };
 };
@@ -56,32 +58,40 @@ Scope.prototype.$$areEqual = function (newValue, oldValue, valueEq) {
 
 /**
  * internal function
- * One digest loop. For each watcher, call the listener if the value changed
+ * One digest loop for each scope and children. For each watcher, call the listener if the value changed
  * return dirty(boolean) if there was a change in the loop
  */
 Scope.prototype.$$digestOnce = function () {
-    var self = this, newValue, oldValue, dirty;
+    var self = this, dirty, continueLoop = true;
+    
+    // Run a digest in this scope, and all children scopes
+    this.$$everyScope(function(scope) {
+        var newValue, oldValue;
+        _.forEachRight(scope.$$watchers, function (watcher) {
+            try {
+                if (watcher) {
+                    newValue = watcher.watchFn(scope);
+                    oldValue = watcher.last;
 
-    _.forEachRight(this.$$watchers, function (watcher) {
-        try {
-            if (watcher) {
-                newValue = watcher.watchFn(self);
-                oldValue = watcher.last;
-
-                if (!self.$$areEqual(newValue, oldValue, watcher.valueEq)) {
-                    self.$$lastDirtyWatch = watcher;
-                    watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
-                    watcher.listenerFn(newValue,
-                        (oldValue === initWatchVal ? newValue : oldValue),
-                        self);
-                    dirty = true;
-                } else if (self.$$lastDirtyWatch === watcher) {
-                    return false;
+                    if (!scope.$$areEqual(newValue, oldValue, watcher.valueEq)) {
+                        self.$root.$$lastDirtyWatch = watcher;
+                        watcher.last = watcher.valueEq ? _.cloneDeep(newValue) : newValue;
+                        watcher.listenerFn(newValue,
+                            (oldValue === initWatchVal ? newValue : oldValue),
+                            scope);
+                        dirty = true;
+                    // if this watcher is also the lastDirtyWatcher, then short circuit
+                    } else if (self.$root.$$lastDirtyWatch === watcher) {
+                        continueLoop = false;
+                        // break the forEachRight
+                        return false;
+                    }
                 }
+            } catch (e) {
+                console.error(e);
             }
-        } catch (e) {
-            console.error(e);
-        }
+        });
+        return continueLoop;
     });
 
     return dirty;
@@ -95,7 +105,7 @@ Scope.prototype.$$digestOnce = function () {
  */
 Scope.prototype.$digest = function () {
     var dirty, ttl = 10;
-    this.$$lastDirtyWatch = null;
+    this.$root.$$lastDirtyWatch = null;
     this.$beginPhase('$digest');
     if (this.$$applyAsyncId) {
         clearTimeout(this.$$applyAsyncId);
@@ -142,7 +152,7 @@ Scope.prototype.$apply = function (expr) {
         return this.$eval(expr);
     } finally {
         this.$clearPhase();
-        this.$digest();
+        this.$root.$digest();
     }
 };
 
@@ -155,7 +165,7 @@ Scope.prototype.$evalAsync = function (expr) {
     if (!self.$$phase && !self.$$asyncQueue.length) {
         setTimeout(function() {
             if (self.$$asyncQueue.length) {
-                self.$digest();
+                self.$root.$digest();
             }
         }, 0);
     }
@@ -272,9 +282,26 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
  */
 Scope.prototype.$new = function() {
     var child = Object.create(this);
+    this.$$children.push(child);
     // To allow own digest loop to occur properly, assign it's own $$watchers
     child.$$watchers = [];
+    // don't allow child to inherit this.$$children;
+    child.$$children = [];
     return child;
 };
+
+/**
+ * run code on each of the children scopes
+ */
+
+Scope.prototype.$$everyScope = function(fn) {
+    if (fn(this)) {
+        return this.$$children.every(function(child) {
+            return child.$$everyScope(fn);
+        });
+    } else {
+        return false;
+    }
+}
 
 module.exports = Scope;

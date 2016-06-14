@@ -299,13 +299,27 @@ Scope.prototype.$new = function(isolated, parent) {
     child.$$watchers = [];
     // don't allow child to inherit this.$$children;
     child.$$children = [];
+    child.$parent = parent;
     return child;
+};
+
+/**
+ * remove ourself from our parent
+ */
+Scope.prototype.$destroy = function() {
+    if (this.$parent) {
+        var siblings = this.$parent.$$children,
+            indexOfThis = siblings.indexOf(this);
+        if (indexOfThis > -1) {
+            siblings.splice(indexOfThis);
+        }
+    }
+    this.$$watchers = null;
 };
 
 /**
  * run code on each of the children scopes
  */
-
 Scope.prototype.$$everyScope = function(fn) {
     if (fn(this)) {
         return this.$$children.every(function(child) {

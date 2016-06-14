@@ -330,4 +330,24 @@ Scope.prototype.$$everyScope = function(fn) {
     }
 };
 
+/**
+ * Watch a collection and keep an eye on a single depth of items
+ */
+Scope.prototype.$watchCollection = function(watchFn, listenerFn) {
+    var newValue, oldValue, self = this, changeCount = 0;
+    var internalWatchFn = function(scope) {
+        newValue = watchFn(scope);
+        if (!self.$$areEqual(newValue, oldValue, false)) {
+            changeCount++;
+        }
+        // Check for changes
+        oldValue = newValue;
+        return changeCount;
+    };
+    var internalListenerFn = function() {
+        listenerFn(newValue, oldValue, self);
+    };
+    return this.$watch(internalWatchFn, internalListenerFn);
+};
+
 module.exports = Scope;

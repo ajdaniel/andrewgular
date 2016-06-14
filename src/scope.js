@@ -280,20 +280,21 @@ Scope.prototype.$watchGroup = function(watchFns, listenerFn) {
 /**
  * return an instance of Scope with this as the prototype/ancestor
  */
-Scope.prototype.$new = function(isolated) {
+Scope.prototype.$new = function(isolated, parent) {
     var child;
+    parent = parent || this;
     
     if (isolated) {
         child = new Scope();
-        child.$root = this.$root;
-        child.$$asyncQueue = this.$$asyncQueue;
-        child.$$postDigestQueue = this.$$postDigestQueue;
-        child.$$applyAsyncQueue = this.$$applyAsyncQueue;
+        child.$root = parent.$root;
+        child.$$asyncQueue = parent.$$asyncQueue;
+        child.$$postDigestQueue = parent.$$postDigestQueue;
+        child.$$applyAsyncQueue = parent.$$applyAsyncQueue;
     } else {
         child = Object.create(this);
     }
     
-    this.$$children.push(child);
+    parent.$$children.push(child);
     // To allow own digest loop to occur properly, assign it's own $$watchers
     child.$$watchers = [];
     // don't allow child to inherit this.$$children;
